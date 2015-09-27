@@ -1,0 +1,88 @@
+---
+title: "HumanActivityRecognition"
+output: html_document
+---
+
+**Author :- Supreet Singh Kochar**
+
+**Reading the data :-**
+
+```{r}
+HumanActivityTraining <- read.csv("C:\\Users\\Lenovo\\Downloads\\pml-training.csv")
+HumanActivityTest <- read.csv("C:\\Users\\Lenovo\\Downloads\\pml-testing.csv")
+```
+
+**Missing Value treatment :-**
+
+First we will check for how many missing values we have.
+```{r}
+MissingValues <- colSums(is.na(HumanActivityTraining))
+```
+
+Since we have 67 columns with missing values and all columns have same number of 
+missing values(19216) which is close to total number of observations, so imputing
+values in those columns (say by knn) may not give accurate results in predicting final outcome (classe). So we will ignore those columns for time being and check how our model is performing without those columns. If model does not give good results then we will revisit these columns.
+
+```{r}
+HumanActivityTraining <- HumanActivityTraining[, colSums(is.na(HumanActivityTraining)) == 0] 
+HumanActivityTest <- HumanActivityTest[, colSums(is.na(HumanActivityTest)) == 0] 
+```
+
+**Removing insignificant variables :-**
+
+By looking at the structure, summary statistics, zero variance, skewness of all variables we will remove variables which may not contribute much in predicting classe.
+
+```{r}
+library(randomForest)
+library(caret)
+Structure <- str(HumanActivityTraining)
+Summary <- summary(HumanActivityTraining)
+ZeroVar <- nearZeroVar(HumanActivityTraining)
+HumanActivityTraining <- HumanActivityTraining[, c("num_window", "roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt", "gyros_belt_x", "gyros_belt_y", "gyros_belt_z", "accel_belt_x", "accel_belt_y", "accel_belt_z", "magnet_belt_x", "magnet_belt_y", "magnet_belt_z", "roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm", "gyros_arm_x", "gyros_arm_y", "gyros_arm_z","accel_arm_x", "accel_arm_y", "accel_arm_z", "magnet_arm_x",  "magnet_arm_y", "magnet_arm_z", "roll_dumbbell", "pitch_dumbbell", "yaw_dumbbell", "total_accel_dumbbell", "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z", "accel_dumbbell_x", "accel_dumbbell_y", "accel_dumbbell_z", "magnet_dumbbell_x", "magnet_dumbbell_y", "magnet_dumbbell_z", "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm", "gyros_forearm_x", "gyros_forearm_y", "gyros_forearm_z", "accel_forearm_x", "accel_forearm_y", "accel_forearm_z", "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z", "classe")]
+HumanActivityTraining[, 1:53] <- sapply(HumanActivityTraining[, 1:53], as.numeric)
+TrainingColumns <- colnames(HumanActivityTraining)
+TrainingColumns <- TrainingColumns[1:53]
+HumanActivityTest <- HumanActivityTest[, TrainingColumns]
+HumanActivityTest[, 1:53] <- sapply(HumanActivityTest[, 1:53], as.numeric)
+```
+
+**Partitioning the data :-**
+
+We will partition data in 70% training and 30% test data set. We will use test dataset for cross validation.
+
+```{r}
+PartitionData <- createDataPartition(HumanActivityTraining$classe, p = 0.70, list=F)
+TrainingData <- HumanActivityTraining[PartitionData, ]
+TestData <- HumanActivityTraining[-PartitionData, ]
+```
+
+**Model building :-**
+
+We will build model using random forest and we will use 10-fold cross validation.
+
+```{r}
+ControlRf <- trainControl(method = "cv", 10)
+ModelRf <- train(classe ~ ., data = TrainingData, trControl = ControlRf, method = "rf", ntree = 300)
+ModelRf
+```
+
+**Evaluating model performance :-**
+
+```{r}
+PredictRf <- predict(ModelRf, TestData)
+confusionMatrix(PredictRf, TestData$classe)
+Accuracy <- postResample(PredictRf, TestData$classe)
+Accuracy
+SampleError <- 1 - as.numeric(confusionMatrix(PredictRf, TestData$classe)$overall[1])
+SampleError
+```
+
+From the output we can see that accuracy of model is very high on unseen data and sample error is very low. So our model is performing pretty good.
+
+**Predicting test dataset :-**
+
+```{r}
+Result <- predict(ModelRf, HumanActivityTest)
+Result
+```
+
